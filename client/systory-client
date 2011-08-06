@@ -67,6 +67,27 @@ if ((scalar @ARGV == 0) || ($ARGV[0] =~ /debug/i )) {
 	
 };
 
+# If 'facter' is available, populate the hash '%facts':
+
+my ($facter, $has_facts, %fact);
+
+if ( -x "/usr/bin/facter") { 
+  
+  $facter = '/usr/bin/facter';
+  $has_facts = 'true';
+  
+  open (FACTS, "$facter |") or die "Can't run $facter: $!\n";
+  
+  while (<FACTS>) {
+    
+    chomp;
+    my ($key, $value) = split (/\s=>\s/, $_);
+    $fact{$key} = $value;
+  }
+  
+  close FACTS;
+}
+
 ####  The following variables will be populated by calling the "gather_data"
 ####  subroutine in the appropriate package.  
 
@@ -81,7 +102,14 @@ $sys->gather_data;
 
 my %d;
 
+if ( $fact{'facterversion'} ) {
+  $d{'facterversion'} = $fact{'facterversion'}
+}
+
 $d{'client_vers'}                   = $version;
+@d{'cpu_user', 'cpu_system'}        = &get_cpu_usage;
+@d{'load_01', 'load_05', 'load_15'} = &get_load;
+$d{'time'}                          = time();
 $d{'os'}                            = &get_os;
 $d{'os_vers'}                       = &get_os_vers;
 $d{'hostid'}                        = &get_hostid;
@@ -94,9 +122,6 @@ $d{'proc_speed'}                    = &get_proc_speed;
 $d{'swap_used'}                     = &get_swap_used;
 $d{'uptime'}                        = &get_uptime;
 @d{'upsecs', 'upsecs_match'}        = &get_upsecs;
-@d{'cpu_user', 'cpu_system'}        = &get_cpu_usage;
-@d{'load_01', 'load_05', 'load_15'} = &get_load;
-$d{'time'}                          = time();
 
 ###############################################################################
 
@@ -198,46 +223,55 @@ package macosx;
 
 sub gather_data {
 
-	####  $model, $num_proc, $ram, $serial ...
+  if ($has_facts) {
+    
+    $os         = $fact{'macosx_productname'};
+    $os_vers    = $fact{'macosx_productversion'};
+    $hostname   = $fact{'hostname'};
+    $model      = $fact{'sp_machine_name'};
+    $num_proc   = $fact{'sp_number_processors'};
+    $proc_speed = $fact{'sp_current_processor_speed'};
+    $serial     = $fact{'sp_serial_number'};
+    
+    ( $ram = $fact{'memorytotal'} * 1024 ) =~ s/(\d+\.\d+)\s\w+/\1/;
+    
+  } else {
+    
+    
+  	@cmd = qw(/usr/bin/sw_vers -productName 2>/dev/null);
+  	chomp ($os = `@cmd`);
 
-	@cmd = qw(/usr/sbin/system_profiler -detailLevel 2 SPHardwareDataType 2>/dev/null);
-	
-	open (CMD, "@cmd |") or die "Can't run @cmd: $!\n";
-	
-	while (<CMD>) {
-	
-		next unless /:/;
-				
-		$model      = $1 if /Model\sName:\s(.*$)/;
-		$num_proc   = $1 if /Total\sNumber\sof\sCores:\s(\d+$)/;
-		$proc_speed = $1 if /Processor\sSpeed:\s(.*$)/;
-		$serial     = $1 if /Serial\sNumber.+:\s(\w+$)/;
-		$ram        = $1 * 1024 if /Memory:\s(\d+)/;
+  	@cmd = qw(/usr/bin/sw_vers -productVersion 2>/dev/null);
+  	chomp ($os_vers = `@cmd`);
 
-		
-	};
-	
-	close CMD;
+  	@cmd = qw(/usr/bin/sw_vers -buildVersion 2>/dev/null);
+  	chomp (my $build = `@cmd`);
 
-	####  $os ...
-	
-	@cmd = qw(/usr/bin/sw_vers -productName 2>/dev/null);
-	chomp ($os = `@cmd`);
+  	$os_vers .= " (" . $build . ")";
 
-	####  $os_vers ...
-	
-	@cmd = qw(/usr/bin/sw_vers -productVersion 2>/dev/null);
-	chomp ($os_vers = `@cmd`);
-	
-	@cmd = qw(/usr/bin/sw_vers -buildVersion 2>/dev/null);
-	chomp (my $build = `@cmd`);
-	
-	$os_vers .= " (" . $build . ")";
-	
-	####  $hostname ...
-	
-	@cmd = qw(/bin/hostname -s 2>/dev/null);
-	chomp ($hostname = `@cmd`);
+  	@cmd = qw(/bin/hostname -s 2>/dev/null);
+  	chomp ($hostname = `@cmd`);
+
+  	@cmd = qw(/usr/sbin/system_profiler -detailLevel 2 SPHardwareDataType 2>/dev/null);
+
+  	open (CMD, "@cmd |") or die "Can't run @cmd: $!\n";
+
+  	while (<CMD>) {
+
+  		next unless /:/;
+
+  		$model      = $1 if /Model\sName:\s(.*$)/;
+  		$num_proc   = $1 if /Total\sNumber\sof\sCores:\s(\d+$)/;
+  		$proc_speed = $1 if /Processor\sSpeed:\s(.*$)/;
+  		$serial     = $1 if /Serial\sNumber.+:\s(\w+$)/;
+  		$ram        = $1 * 1024 if /Memory:\s(\d+)/;
+
+  	};
+
+  	close CMD;
+
+  }
+
 	
 	####  $uptime, $load_01, $load_05, $load_15
 	
