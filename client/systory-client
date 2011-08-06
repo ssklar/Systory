@@ -1,18 +1,18 @@
 #!/usr/bin/perl
-###############################################################################
-#### systory-client
-###############################################################################
+######################
+# systory-client
+######################
 
 use strict;
 use Socket;
 
 my ($version) = ('1.4');
 
-###############################################################################
+######################
 
-####  $sys is defined based on the OS of the system the script is running on.
-####  Its value corresponds to a "package" by the same name found at the bottom
-####  of this script, whose contents is a sub called "gather_data".
+#  $sys is defined based on the OS of the system the script is running on.
+#  Its value corresponds to a "package" by the same name found at the bottom
+#  of this script, whose contents is a sub called "gather_data".
 
 my $sys;
 
@@ -23,48 +23,46 @@ BEGIN {
   elsif  ( $^O =~ /lin/ )  {  $sys = 'linux'   }
   elsif  ( $^O =~ /dar/ )  {  $sys = 'macosx'  }
   else   { die "unknown operating system.\n"   }
-  
+
 };
 
-###############################################################################
-
-####  look for a file named "/nosystory" or "/etc/nosystory"; if it exists,
-####  silently exit...
+#  look for a file named "/nosystory" or "/etc/nosystory"; if it exists,
+#  silently exit...
 
 if ( ( -f "/nosystory" ) || ( -f "/etc/nosystory" ) ) {  exit 0  };
 
-####  check the value of $ARGV[0]; if it is "debug" (or empty), dump the output 
-####  to STDOUT.  Otherwise, split it into a server name and port to which we 
-####  will send the data.
+#  check the value of $ARGV[0]; if it is "debug" (or empty), dump the output 
+#  to STDOUT.  Otherwise, split it into a server name and port to which we 
+#  will send the data.
 
 my ($debug, $server, $port);
 
 if ((scalar @ARGV == 0) || ($ARGV[0] =~ /debug/i )) {
 
   $debug++;
-  
+
 } elsif ($ARGV[0] =~ /version/i) {
 
     print STDERR "$0: version $version\n";
-    
+
     exit 0;
-  
+
 } else {
 
   if ($ARGV[0] =~ /(^\w+.*):(\d+$)/) {
-  
+
     ($server, $port) = ($1, $2)
-  
+
   } elsif ($ARGV[0] =~ /^\w+$/ && $ARGV[1] =~ /^\d+$/) {
-  
+
     ($server, $port) = ($ARGV[0], $ARGV[1])
-    
+
   } else {
-  
+
     die "Usage:\n$0 server:port -or-\n$0 server port -or-\n$0 debug\n\n"
-    
+
   };
-  
+
 };
 
 # If 'facter' is available, populate the hash '%facts':
@@ -72,24 +70,24 @@ if ((scalar @ARGV == 0) || ($ARGV[0] =~ /debug/i )) {
 my ($facter, $has_facts, %fact);
 
 if ( -x "/usr/bin/facter") { 
-  
+
   $facter = '/usr/bin/facter';
   $has_facts = 'true';
-  
+
   open (FACTS, "$facter |") or die "Can't run $facter: $!\n";
-  
+
   while (<FACTS>) {
-    
-    chomp;
+
     my ($key, $value) = split (/\s=>\s/, $_);
     $fact{$key} = $value;
+
   }
-  
+
   close FACTS;
 }
 
-####  The following variables will be populated by calling the "gather_data"
-####  subroutine in the appropriate package.  
+#  The following variables will be populated by calling the "gather_data"
+#  subroutine in the appropriate package.
 
 my (@cmd, $os, $os_vers, $hostid, $hostname, $model, $ram, $serial, $num_proc,
     $proc_speed, $swap_used, $uptime, $cpu_user, $cpu_system, $load_01, 
@@ -97,8 +95,8 @@ my (@cmd, $os, $os_vers, $hostid, $hostname, $model, $ram, $serial, $num_proc,
 
 $sys->gather_data;
 
-####  The hash "%d" contains the keys and values that will be sent to the
-####  systory server.
+#  The hash "%d" contains the keys and values that will be sent to the
+#  systory server.
 
 my %d;
 
@@ -123,7 +121,7 @@ $d{'swap_used'}                     = &get_swap_used;
 $d{'uptime'}                        = &get_uptime;
 @d{'upsecs', 'upsecs_match'}        = &get_upsecs;
 
-###############################################################################
+######################
 
 if ($debug) {
 
@@ -134,19 +132,19 @@ if ($debug) {
   my $iaddr = inet_aton($server);
   my $paddr = sockaddr_in($port, $iaddr);
   my $proto = getprotobyname('tcp');
-  
+
   socket  (SERVER, PF_INET, SOCK_STREAM, $proto) || die "socket: $!";
   connect (SERVER, $paddr)                       || die "connect: $!";
-  
+
   foreach (sort keys %d) {  print SERVER ("$_" . "|" . "$d{$_}\n")  };
-  
+
   close (SERVER)                                 || die "close: $!";
-  
+
 };
 
 exit 0;
 
-###############################################################################
+######################
 
 sub get_os         { return ($os            || "UNDEF") };
 sub get_os_vers    { return ($os_vers       || "UNDEF") };
@@ -159,17 +157,17 @@ sub get_num_proc   { return ($num_proc      || "UNDEF") };
 sub get_proc_speed { return ($proc_speed    || "UNDEF") };
 sub get_uptime     { return ($uptime        || "UNDEF") };
 
-####  for the following vars, "0" is a legal value, so we have to check for
-####  definedness ...
+#  for the following vars, "0" is a legal value, so we have to check for
+#  definedness ...
 
 sub get_swap_used  { return (defined ($swap_used)  ? $swap_used  : "UNDEF") };
 sub get_cpu_usage  { return (defined ($cpu_user)   ? $cpu_user   : "UNDEF"), 
                             (defined ($cpu_system) ? $cpu_system : "UNDEF") };
-sub get_load       { return (defined ($load_01)    ? $load_01    : "UNDEF"),     
+sub get_load       { return (defined ($load_01)    ? $load_01    : "UNDEF"),
                             (defined ($load_05)    ? $load_05    : "UNDEF"),
                             (defined ($load_15)    ? $load_15    : "UNDEF") };
-                            
-####  this subroutine converts the string returned by "get_uptime" to seconds
+
+#  this subroutine converts the string returned by "get_uptime" to seconds
 
 sub get_upsecs {
 
@@ -177,54 +175,52 @@ sub get_upsecs {
   my $hours = 60 * 60;
   my $mins  = 60;
 
-# return "UNDEF" unless exists ($d{'uptime'});
-  
   if    ($d{'uptime'} =~ /\s+(\d+)\s+day\(?s?\)?,?\s+(\d+):(\d+),/)
-  
+
     { return ($1 * $days) + ($2 * $hours) + ($3 * $mins), "1" }
-    
+
   elsif ($d{'uptime'} =~ /(\d+)\s+day\(?s?\)?,?\s+(\d+)\s*min/ )
-  
+
     { return ($1 * $days ) + ($2 * $mins), "2" }
-    
+
   elsif ($d{'uptime'} =~ /(\d+)\s+day\(?s?\)?,?\s+(\d+)\s*h/ )
-  
+
     { return ($1 * $days) + ($2 * $hours), "3" }
-    
+
   elsif ($d{'uptime'} =~ /(\d+)\s+day\(?s?\)?,?\s+(\d+):(\d+)/ )
-  
+
     { return ($1 * $days) + ($2 * $hours) + ($3 * $mins), "4" }
-    
+
   elsif ($d{'uptime'} =~ /(\d+)\s+day\(?s?\)?,?/ )
-  
+
     { return ($1 * $days), "5" }
-    
+
   elsif ($d{'uptime'} =~ /(\d\d?):(\d\d)/ )
-  
+
     { return ($1 * $hours) + ($2 * $mins), "6" }
-    
+
   elsif ($d{'uptime'} =~ /(\d\d?)\s+hr\(?s?\)?(,?\s+(\d+))?/ )
   
     { return (($1 * $hours) + ((defined $2) ? $3 * $mins : 0)), "7" }
-    
+
   elsif ($d{'uptime'} =~ /(\d\d?)\s+min/ )
-  
+
     { return ($1 * $mins), "8" }
-    
+
   else 
   
     { return "UNDEF", "9" }
-    
+
 };
 
-###############################################################################
+######################
 
 package macosx;
 
 sub gather_data {
 
   if ($has_facts) {
-    
+
     $os         = $fact{'macosx_productname'};
     $os_vers    = $fact{'macosx_productversion'};
     $hostname   = $fact{'hostname'};
@@ -232,12 +228,11 @@ sub gather_data {
     $num_proc   = $fact{'sp_number_processors'};
     $proc_speed = $fact{'sp_current_processor_speed'};
     $serial     = $fact{'sp_serial_number'};
-    
+
     ( $ram = $fact{'memorytotal'} * 1024 ) =~ s/(\d+\.\d+)\s\w+/$1/;
-    
+
   } else {
-    
-    
+
     @cmd = qw(/usr/bin/sw_vers -productName 2>/dev/null);
     chomp ($os = `@cmd`);
 
@@ -272,145 +267,118 @@ sub gather_data {
 
   }
 
-  
-  ####  $uptime, $load_01, $load_05, $load_15
-  
   @cmd = qw(/usr/bin/uptime 2>/dev/null);
-  
+
   if (`@cmd` =~ /up\s+(.*),\s+\d+.*:\s+(\d+.\d+),?\s+(\d+.\d+),?\s+(\d+.\d+)/) {
-  
+
     ($uptime, $load_01, $load_05, $load_15) = ($1, $2, $3, $4)
-  
+
   };
-  
-  ####  $cpu_user, $cpu_system ...
-  
+
   @cmd = qw(/usr/sbin/iostat -d -n 0 -C 1 1 2>/dev/null | /usr/bin/tail -1);
-  
+
   if (`@cmd` =~ /(\d+)\s+(\d+)\s+\d+$/) {
-  
+
     ($cpu_user, $cpu_system) = ($1, $2)
-    
+
   };
-  
+
 };
 
 1;  ## END package macosx
-
-###############################################################################
 
 package aix;
 
 sub gather_data {
 
-  ####  $os ...
-  
   @cmd = qw(/usr/bin/uname -s 2>/dev/null);
   chomp ($os = `@cmd`);
-  
-  ####  $os_vers ...
-  
+
   @cmd = qw(/usr/bin/oslevel -r 2>/dev/null);
   chomp ($os_vers = `@cmd`);
-  
-  ####  $hostname ...
-  
+
   @cmd = qw(/usr/bin/hostname -s 2>/dev/null);
   chomp ($hostname = `@cmd`);
-  
-  ####  $uptime, $load_01, $load_05, $load_15
-  
+
   @cmd = qw(/usr/bin/uptime 2>/dev/null);
-  
+
   if (`@cmd` =~ /up\s+(.*),\s+\d+.*:\s+(\d+.\d+),?\s+(\d+.\d+),?\s+(\d+.\d+)/) {
-  
+
     ($uptime, $load_01, $load_05, $load_15) = ($1, $2, $3, $4)
-  
+
   };
-  
-  #### $hostid ...
-  
+
   @cmd = qw(/usr/sbin/hostid 2>/dev/null);
   chomp ($hostid = `@cmd`);
-  
-  ####  $model ...
-  
+
   @cmd = qw(/usr/sbin/lsattr -El sys0 -a modelname 2>/dev/null);
-  
+
   if (`@cmd` =~ /^modelname\s+IBM,(\d{4}-\w{3})/) {
-  
+
     $model = $1
-    
+
   };
-  
-  ####  $ram ...
-  
+
   @cmd = qw(/usr/sbin/lsattr -El sys0 -a realmem 2>/dev/null);
-  
+
   if (`@cmd` =~ /^realmem\s+(\d+)/) {
-  
+
     $ram = $1 / 1024
-    
+
   };
-  
-  #### $serial ...
-  
+
   @cmd = qw(/usr/sbin/lsattr -El sys0 -a systemid 2>/dev/null);
-  
+
   if (`@cmd` =~ /^systemid\s+IBM,(\w+)\s+/) {
-  
+
     $serial = $1
-    
+
   };
-  
-  ####  $num_proc ...
-  
+
   @cmd = qw(/usr/sbin/lsdev -Cc processor -S Available 2>/dev/null);
-  
+
   open (CMD, "@cmd |") or die "Can't run @cmd: $!\n";
-  
+
   while (<CMD>) {
-  
+
     $num_proc++;
-    
+
   };
-  
+
   close CMD;
-  
-  ####  $proc_speed ...
-  
+
   @cmd = qw(/usr/sbin/lsattr -El proc0 -a frequency 2>/dev/null);
-  
+
   if (`@cmd` =~ /^frequency\s+(\d+)\s+/) {
-  
+
     $proc_speed = int(($1/1000000) + .5) . " MHz"
-    
+
   } else {
-  
+
     @cmd = qw(/usr/sbin/lscfg -vpl sysplanar0 2>/dev/null);
-    
+
     open (CMD, "@cmd |") or die "Can't run @cmd: $!\n";
-    
+
     while (<CMD>) {
-    
+
       next unless /PS=(.*?),/;
-      
+
       $proc_speed = int((oct("0x$1") / 1000000) + .5) . " MHz";
-      
+
       last;
-      
+
     };
-    
+
   };
             
-  ####  $cpu_user, $cpu_system ...
-  
+  #  $cpu_user, $cpu_system ...
+
   @cmd = qw(/usr/sbin/sar -u 1 5 2>/dev/null | /usr/bin/tail -1);
-  
+
   if (`@cmd` =~ /\w+\s+(\d+)\s+(\d+)\s+\d+\s+\d+$/) {
-  
+
     ($cpu_user, $cpu_system) = ($1, $2)
-    
+
   } else {
 
     @cmd = qw(/usr/bin/vmstat 1 5  2>/dev/null | /usr/bin/tail -1);
@@ -423,7 +391,7 @@ sub gather_data {
 
   };
   
-  ####  $swap_used ...
+  #  $swap_used ...
   
   @cmd = qw(/usr/sbin/lsps -s 2>/dev/null | /usr/bin/tail -1);
   
@@ -437,15 +405,15 @@ sub gather_data {
 
 1;  ## END package aix
 
-###############################################################################
+######################
 
 
 package solaris;
 
 sub gather_data {
 
-  #### if we can find a "sysinfo" binary, we'll use that to gather some of
-  #### the data needed ...
+  # if we can find a "sysinfo" binary, we'll use that to gather some of
+  # the data needed ...
   
   my @bindirs = qw(/usr/local/bin /usr/bin /main/local/bin);
     
@@ -475,7 +443,7 @@ sub gather_data {
       
       @fields = split (/\|\s+/, $_);
                   
-      #### $model, $num_proc, $proc_speed ...
+      # $model, $num_proc, $proc_speed ...
       
       $model      = $fields[4] if $fields[2] =~ /model/;
       $num_proc   = $fields[4] if $fields[2] =~ /numcpu/;
@@ -485,17 +453,17 @@ sub gather_data {
     
   };
   
-  #### $os ...
+  # $os ...
   
   @cmd = qw(/usr/bin/uname -s 2>/dev/null);
   chomp ($os = `@cmd`);
 
-  #### $os_vers ...
+  # $os_vers ...
       
   @cmd = qw(/usr/bin/uname -rv 2>/dev/null);
   chomp ($os_vers = `@cmd`);
   
-  #### $model (if we didn't get if from sysinfo) ...
+  # $model (if we didn't get if from sysinfo) ...
   
   unless ($model) {
     
@@ -504,7 +472,7 @@ sub gather_data {
   
   };
 
-  #### $proc_speed, $num_proc (if we didn't get it from sysinfo) ...
+  # $proc_speed, $num_proc (if we didn't get it from sysinfo) ...
   
   unless ($proc_speed && $num_proc) {
   
@@ -530,13 +498,13 @@ sub gather_data {
     
   };
   
-  #### $hostname ...
+  # $hostname ...
   
   @cmd = qw(/usr/bin/hostname 2>/dev/null);
   ($hostname = `@cmd`) =~ s/(\w+)\..*/$1/;
   chomp $hostname;
   
-  ####  $uptime, $load_01, $load_05, $load_15
+  #  $uptime, $load_01, $load_05, $load_15
   
   @cmd = qw(/usr/bin/uptime 2>/dev/null);
   
@@ -546,7 +514,7 @@ sub gather_data {
   
   };
 
-  ####  $cpu_user, $cpu_system ...
+  #  $cpu_user, $cpu_system ...
   
   @cmd = qw(/usr/sbin/sar -u 1 5 2>/dev/null | /usr/bin/tail -1);
   
@@ -556,12 +524,12 @@ sub gather_data {
     
   };
 
-  ####  $hostid ...
+  #  $hostid ...
   
   @cmd = qw(/usr/bin/hostid 2>/dev/null);
   chomp ($hostid = `@cmd`);
     
-  ####  $swap_used ...
+  #  $swap_used ...
 
   @cmd = qw(/usr/sbin/swap -l 2> /dev/null);
 
@@ -586,7 +554,7 @@ sub gather_data {
 
   $swap_used = sprintf "%d", (($blocks - $free) / $blocks * 100);
 
-  #### ram ...
+  # ram ...
   
   @cmd = qw(/usr/sbin/prtconf 2>/dev/null);
   
@@ -604,7 +572,7 @@ sub gather_data {
 
 1;  ## END package solaris
 
-###############################################################################
+######################
 
 package linux;
 
@@ -615,11 +583,12 @@ sub gather_data {
     $os        = $fact{'lsbdistid'};
     $os_vers   = $fact{'lsbdistrelease'} . " " . $fact{'kernelrelease'};
     $hostname  = $fact{'hostname'};
+    $serial    = $fact{'serialnumber'};
+    $hostid    = $fact{'uniqueid'};
+
     $model     = defined($fact{'productname'}) 
                     ? $fact{'productname'}
                     : $fact{'hardwaremodel'} . " (" . $fact{'virtual'} . ")";
-    $serial    = $fact{'serialnumber'};
-    $hostid    = $fact{'uniqueid'};
 
     ( $ram = $fact{'memorytotal'} * 1024 ) =~ s/(\d+\.\d+)\s\w+/$1/;
 
@@ -627,113 +596,102 @@ sub gather_data {
 
     @cmd = qw(/bin/uname -s 2>/dev/null);
     chomp ($os = `@cmd`);
-  
+
     if ( -f "/etc/debian_version" ) {
 
-  $os_vers = "(Debian) "
-    
+      $os_vers = "(Debian) "
+
     } elsif ( -f "/etc/redhat-release" ) {
-  
-  $os_vers = "(Red Hat) "
-    
+
+      $os_vers = "(Red Hat) "
+
     };
-  
+
     @cmd = qw(/bin/uname -r 2>/dev/null);
     chomp ($os_vers .= `@cmd`);
-  
+
     if ( -x "/usr/sbin/dmidecode" ) {
-  @cmd = qw(/usr/sbin/dmidecode 2> /dev/null);
-    
-  open (CMD, "@cmd |") or die "Can't run @cmd: $!\n";
-  
-  while (<CMD>) {
-    
-    next unless (/^Handle 0x0100/ .. /^Handle 0x0200/);
-    
-      $model  = $1 if (/Product Name: (.*)/);
-      
-      $serial = $1 if (/Serial Number: (.*)/);
-      
+
+      @cmd = qw(/usr/sbin/dmidecode 2> /dev/null);
+
+      open (CMD, "@cmd |") or die "Can't run @cmd: $!\n";
+
+      while (<CMD>) {
+
+        next unless (/^Handle 0x0100/ .. /^Handle 0x0200/);
+        $model  = $1 if (/Product Name: (.*)/);
+        $serial = $1 if (/Serial Number: (.*)/);
+
+      };
     };
-  };
-  
-  
-  #### hostid ...
-  
-  @cmd = qw(/usr/bin/hostid 2>/dev/null);
-  chomp ($hostid = `@cmd`);
-  
-  ####  hostname ...
-  
-  @cmd = qw(/bin/hostname -s 2>/dev/null);
-  chomp ($hostname = `@cmd`);
-  
-  #### model ...
-  
-  unless ($model) {
-  
-    @cmd = qw(/bin/uname -i 2>/dev/null);
-    chomp ($model = `@cmd`);
-  
+
+    @cmd = qw(/usr/bin/hostid 2>/dev/null);
+    chomp ($hostid = `@cmd`);
+
+    @cmd = qw(/bin/hostname -s 2>/dev/null);
+    chomp ($hostname = `@cmd`);
+
+    unless ($model) {
+
+      @cmd = qw(/bin/uname -i 2>/dev/null);
+      chomp ($model = `@cmd`);
+
+    };
+
   };
 
-    };  
-  #### ram, swap_used ...
-  
+  # Facter doesn't provide the remaining info desired ...
+
   open (FILE, "/proc/meminfo") or die "Can't open /proc/meminfo: $!\n";
-  
+
   my ($swap_total, $swap_free);
-  
+
   while (<FILE>) {
-  
+
     $ram = sprintf ("%d", $1 / 1024)    if /MemTotal:\s+(\d+)/;
     $swap_total = $1 if /SwapTotal:\s+(\d+)/;
     $swap_free  = $1 if /SwapFree:\s+(\d+)/;
-    
+
   };
   
   close FILE;
   
   $swap_used = sprintf "%d", (($swap_total - $swap_free) / $swap_total * 100);
-  
-  ####  $uptime, $load_01, $load_05, $load_15
 
   @cmd = qw(/usr/bin/uptime 2>/dev/null);
-  
+
   if (`@cmd` =~ /up\s+(.*),\s+\d+.*:\s+(\d+.\d+),?\s+(\d+.\d+),?\s+(\d+.\d+)/) {
-  
+
     ($uptime, $load_01, $load_05, $load_15) = ($1, $2, $3, $4)
-  
-  };
-  
-  ####  $cpu_user, $cpu_system ...
-  
-  @cmd = qw(/usr/bin/sar -u 1 5 2>/dev/null | /usr/bin/tail -1);
-  
-  if (`@cmd` =~ /\w+:\s+\w+\s+(\d+)\.\d\d\s+(\d+)\.\d\d\s+(\d+)\.\d\d\s+/) {
-  
-    ($cpu_user, $cpu_system) = ($1 + $2, $3)
-    
+
   };
 
-        open (FILE, "/proc/cpuinfo") or die "Can't open /proc/cpuinfo: $!\n";
-                                                                       
-        while (<FILE>) {                                               
-                                                                       
-           $num_proc++ if /^processor\s+:/;                            
-           $proc_speed = sprintf ("%d MHz", $1) if /^cpu MHz\s+:\s+(.*)/;
-                                                                       
-    };                                                                 
-                                                                       
-    close FILE;                                                        
+  @cmd = qw(/usr/bin/sar -u 1 5 2>/dev/null | /usr/bin/tail -1);
+
+  if (`@cmd` =~ /\w+:\s+\w+\s+(\d+)\.\d\d\s+(\d+)\.\d\d\s+(\d+)\.\d\d\s+/) {
+
+    ($cpu_user, $cpu_system) = ($1 + $2, $3)
+
+  };
+
+  open (FILE, "/proc/cpuinfo") or die "Can't open /proc/cpuinfo: $!\n";
+
+  while (<FILE>) {
+
+    $num_proc++ if /^processor\s+:/;
+    $proc_speed = sprintf ("%d MHz", $1) if /^cpu MHz\s+:\s+(.*)/;
+
+  };
+
+  close FILE;
 
 };
 
 1;  ## END package linux
 
-##############################################################################
+#####################
 # Documentation
-##############################################################################
+#####################
 
 =head1 NAME
 
