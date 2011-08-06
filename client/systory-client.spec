@@ -1,6 +1,6 @@
 Summary: Tool to gather system statistics and submit them to a central server
 Name: systory-client
-Version: 1.3
+Version: 1.4
 Release: 1%{?dist}
 Group: Applications/System
 License: Artistic
@@ -35,5 +35,7 @@ performance.
 /etc/cron.d/systory-client.cron
 
 %changelog
+* Sat Aug 06 2011 Sandor W Sklar <ssklar@stanford.edu> 1.4-1
+- Update spec file for client version 1.4
 * Tue Mar 23 2010 Sandor W Sklar <ssklar@stanford.edu> 1.3-1
 - Initial package.
