@@ -1,0 +1,2 @@
+# The systory-client should report every 5 minutes.
+*/5 * * * *     root    /usr/bin/systory-client caprica:4321 > /dev/null 2>&1
