@@ -1,0 +1,32 @@
+a {color: #003399; text-decoration: none;}
+a:active {color: #cc9900; text-decoration: underline;}
+a:visited {color: #330066; text-decoration: none;}
+a:hover {color: #990000; text-decoration: underline;}
+
+body {background-color:#ffffff; color:#333333;}
+
+h1 {font-family: verdana, arial, helvetica, sans-serif; font-size: 24px; font-weight: bold;}
+h2 {font-family: verdana, arial, helvetica, sans-serif; font-size: 20px; font-weight: bold;}
+h3 {font-family: verdana, arial, helvetica, sans-serif; font-size: 16px; font-weight: bold;}
+h4 {font-family: verdana, arial, helvetica, sans-serif; font-size: 12px; font-weight: bold;}
+h5 {font-family: verdana, arial, helvetica, sans-serif; font-size: 10px; font-weight: bold;}
+h6 {font-family: verdana, arial, helvetica, sans-serif; font-size:  8px; font-weight: bold;}
+
+body, th, td, p, div, form, blockquote, ul, ol {font-family: verdana, arial, helvetica, sans-serif; font-size: 11px;}
+
+code {font-family: monaco, courier, serif; font-size: 12px;}
+
+.red {font-family: verdana, arial, helvetica, sans-serif; color: #C30000;}
+.gold {font-family: verdana, arial, helvetica, sans-serif; color: #CC9900;}
+.sage {font-family: verdana, arial, helvetica, sans-serif; color: #999966;}
+.gray {font-family: verdana, arial, helvetica, sans-serif; color: #666666;}
+.blue {font-family: verdana, arial, helvetica, sans-serif; color: #000066;}
+.white {font-family: verdana, arial, helvetica, sans-serif; color: #ffffff;}
+
+.largest {font-family: verdana, arial, helvetica, sans-serif; font-size: 20px;}
+.larger {font-family: verdana, arial, helvetica, sans-serif; font-size: 18px;}
+.large {font-family: verdana, arial, helvetica, sans-serif; font-size: 14px;}
+.medium {font-family: verdana, arial, helvetica, sans-serif; font-size: 12px;}
+.small {font-family: verdana, arial, helvetica, sans-serif; font-size: 11px;}
+.smaller {font-family: verdana, arial, helvetica, sans-serif; font-size: 10px;}
+.smallest {font-family: verdana, arial, helvetica, sans-serif; font-size: 8px;}

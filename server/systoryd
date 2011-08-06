@@ -1,0 +1,398 @@
+#!/usr/bin/perl -w
+###############################################################################
+#### $Id: systoryd,v 1.35 2005/08/08 19:06:45 ssklar Exp $
+###############################################################################
+
+
+####  CONFIGURATION  ##########################################################
+
+####  "$basedir" will contain this script, the pid file, the "host" directory,
+####   the log file, and the "public_html" directory ...
+
+my $basedir  =  "/opt/home/systory";
+
+####  Set the constant DEBUG to any non-zero value if you want debugging
+####  information generated.
+
+use constant DEBUG => 1;
+
+####  "$port" is the port that the server will listen on; it can be overridden
+####  by specifying a port number as an argument to the script ...
+
+my $port     =  shift || "4321";
+
+####  DON'T CHANGE ANYTHING BELOW HERE ########################################
+
+use strict;
+use Socket;
+use IO::Socket;
+use IO::File;
+#use Net::hostent;
+use POSIX qw(WNOHANG setsid);
+use RRDs;
+
+###############################################################################
+
+
+my ($version) = ('$Revision: 1.35 $ ' =~ /^\$\w+: (.*) \$ $/);
+
+my $pidfile  =  "$basedir/pid";
+my $log      =  "$basedir/log";
+
+my $quitting_time = 0;
+
+###############################################################################
+
+#### set handler for SIGCHILD to reap children so we don't make lots of
+#### zombies and fill up the process table ...
+
+$SIG{'CHLD'} = sub { while ( waitpid (-1, WNOHANG) > 0 ) { } };
+
+#### set handler for SIGTERM and SIGINT to set the variable $quitting_time.
+#### when that var is non-zero, the script will exit cleanly ...
+
+$SIG{'TERM'} = $SIG{'INT'} = sub { $quitting_time++ };
+
+#### set handler for the "warn" function, so that warnings will be formatted
+#### with the current time and the pid of the process that wrote the warning ...
+
+$SIG{__DIE__} = $SIG{__WARN__} = sub { print STDERR localtime() . " [$$]: $_[0]" };
+
+
+#### see if a pidfile already exists, and if not, create one ...
+
+my $fh = &open_pidfile;
+
+####  bind to the specified port ...
+
+my $listen_sock = IO::Socket::INET->new ( LocalPort =>  $port,
+                                          Listen    =>  20,
+                                          Proto     =>  'tcp',
+                                          Reuse     =>  1,
+                                          Timeout   =>  60 )
+  or die "couldn't create socket: $@";
+
+warn "$0: starting\n";
+
+#### become a daemon ...
+
+my $pid = &daemonize;
+
+#### write the parent pid to the $pidfile ...
+
+print $fh $pid;
+close $fh;
+
+warn "started\n";
+
+#### start the main loop; we only exit it when the parent process
+#### gets a signal to die ...
+
+while (! $quitting_time) {
+
+	next unless my $connection = $listen_sock->accept;
+	
+	my $clientip = $connection->peerhost;
+
+	my $iaddr = inet_aton($clientip); 
+
+	my $client = gethostbyaddr($iaddr, AF_INET) || $clientip ;
+
+	warn "connect from $client\n";
+	
+	warn "Can't fork for client $client: $!"
+	  unless defined ( my $child = fork() );
+	
+	if ($child == 0) {
+			
+		$listen_sock->close;
+		process ($client, $connection);
+	
+		DEBUG && do { warn "exiting child process $$\n" };	
+		exit 0;
+	};
+
+	DEBUG && do { warn "closing connection from $client\n" };	
+	$connection->close;
+
+};
+
+warn "Received signal $_[0]; quitting now.\n";
+	
+#### if we exit cleanly, get rid of the pidfile ...
+    
+unlink $pidfile if $$ == $pid;
+    
+##  END main
+
+###############################################################################
+
+sub open_pidfile {
+
+    if (-e $pidfile) {
+    
+        my $fh = IO::File->new($pidfile) || return;
+        
+        my $pid = <$fh>;
+        
+        ##  if there is already a pidfile and a process with the pid within,
+        ##  we're probably already running ...
+        
+        die "Process already running (pid $pid)\n" 
+          if kill 0 => $pid;
+        
+        ##  ... but if there is no process with that pid, we might
+        ##  have just not shut down properly ...
+        
+        warn "Removing pidfile for terminated process $pid (unclean shutdown?)\n";
+        
+        die "Can't unlink old pidfile $pidfile: $!"
+          unless -w $pidfile && unlink $pidfile;
+        
+    };
+    
+    return IO::File->new ( $pidfile, O_WRONLY|O_CREAT|O_EXCL, 0644)
+      or die "Can't create pidfile $pidfile: $!";
+	
+};  ##  END open_pidfile
+
+###############################################################################
+
+sub daemonize {
+
+    die "Can't fork: $!"
+      unless defined (my $child = fork);
+    
+    exit 0 if $child;      ##  parent dies
+    
+    setsid();              ##  become session leader
+    chdir ("$basedir");    ##  go to the $basedir
+    umask ("0");           ##  change our umask to 0
+    $ENV{'PATH'} = '';     ##  empty out our path
+    
+
+    ####  close STDIN and STDOUT ...
+    
+    open (STDIN,  "</dev/null");
+    open (STDOUT, ">/dev/null");
+    
+    ####  redirect STDERR to $log ...
+    
+    open (STDERR, ">>$log") or die "Can't write to log file $log: $!";
+
+    ####  return with our PID ...
+    
+    return $$;
+
+};  ##  END daemonize
+
+###############################################################################
+
+sub process {
+
+	my $client = shift;
+	my $sock   = shift;
+	
+	DEBUG && do { warn "forked pid $$ for $client\n" };
+	
+	STDIN->fdopen($sock, "<")
+	  or die "Can't reopen STDIN: $!";
+	
+	##  read in the data sent by the client, split it into keys and values of
+	##  the hash %d ...
+	
+	my $input = do { local( $/ ) ; <STDIN> };	
+	
+	my %d = $input =~ /^(\w+)\|(.*)$/mg;
+	
+	DEBUG && do {
+	
+		foreach (keys %d) {
+			warn "received data from $client: $_ = $d{$_}\n";
+		};
+	};
+	
+	##  create the host's data directory, if it doesn't already exist ...
+
+	## SITE-SPECIFIC CODE HERE
+	## when new hosts are being built, their hostname begins with "build";
+	## systory.client is active on these systems during the build process,
+	## but we don't want to save any data that they send, so we want to
+	## stop processing if the hostname =~ /^build/ ...
+
+	if ($d{'hostname'} =~/^build/) {
+
+		DEBUG && do { warn "ignoring received data from $client\n" };
+
+		return;
+
+	};
+
+	## END SITE-SPECIFIC CODE
+		
+	my $datadir;
+	
+	if (($d{'hostname'} =~ /^(\w.*)$/) && ($d{'hostname'} ne 'UNDEF')) {
+	
+		$datadir = "$basedir/host/$1";
+		
+	} else {
+	
+		die "No value available for key 'hostname'\n";
+		
+	};
+	
+	unless ( -d "$datadir" ) {
+
+		warn "creating directory $datadir\n";
+	
+		mkdir ("$datadir", 0755)
+		  or die "failed to create directory $datadir: $!";
+		  
+	};
+
+	## make (or update) the "summary" file ...
+	
+	open (STDOUT, ">", "$datadir/summary")
+		  or die "Can't open STDOUT to $datadir/summary: $!";
+		  
+	print  $d{'hostname'} . "|" .
+               $d{'os'} . " " . $d{'os_vers'} . "|" .
+               $d{'model'} . "|" .
+	       $d{'num_proc'} . " x " . $d{'proc_speed'} . "|" .
+               $d{'ram'} . "|" .
+               $d{'uptime'};
+
+	close STDOUT;
+	
+	## make (or update) the "dump" file ...
+
+	open (STDOUT, ">",  "$datadir/dump")
+		or die "Can't open STDOUT to $datadir/dump: $!";
+		
+	foreach (sort keys %d) {
+	
+		print STDOUT "$_|$d{$_}\n";
+		
+	};
+	
+	close STDOUT;
+	
+	##  update the "CPU" RRD ...
+	
+	if (($d{'cpu_user'}   =~ /^\d+$/) &&
+	    ($d{'cpu_system'} =~ /^\d+$/)) {
+	
+		update_rrd ("$datadir", "CPU", @d{'time', 'cpu_user', 'cpu_system'});
+		
+	};
+	
+	##  update the "LOAD" RRD ...
+	
+	if (($d{'load_01'}  =~ /^\d+\.\d+$/) &&
+	    ($d{'load_05'}  =~ /^\d+\.\d+$/) &&
+	    ($d{'load_15'}  =~ /^\d+\.\d+$/)) {
+	    
+		update_rrd ("$datadir", "LOAD", @d{'time', 'load_01', 'load_05', 'load_15'});
+		
+	};
+	
+	##  update the "SWAP" RRD ...
+	
+	if ($d{'swap_used'} =~ /^\d+$/) {
+	
+		update_rrd ("$datadir", "SWAP", @d{'time', 'swap_used'});
+		
+	};
+	
+	DEBUG && do { warn "finished processing for $client\n" };
+	return;
+
+};  ##  END process
+
+###############################################################################
+
+sub update_rrd {
+
+	my $datadir = shift;
+	my $type    = shift;
+	my $time    = shift;
+	my $data    = join (":", @_);
+	
+	my $rrdfile = "$datadir/$type.rrd";
+	
+	unless (-f "$rrdfile") {
+	
+		make_rrd ("$rrdfile", "$type", "$time");
+		
+	};
+	
+	RRDs::update ("$rrdfile", "$time:$data");
+	
+	my $rrderr = RRDs::error;
+	
+	if ($rrderr) {
+	
+		warn "RRDs error during update of $rrdfile: $rrderr.";
+		
+	};
+	
+	return;
+	
+};  ##  END update_rrd
+
+###############################################################################
+
+sub make_rrd {
+
+	my ($rrdfile, $type, $time) = @_;
+	
+	my @rrdopts = ( "--start" => "$time-5min",
+	                "--step"  => "300" );
+	                
+	my @rra     = ( "RRA:AVERAGE:0.5:1:600",
+	                "RRA:AVERAGE:0.5:5:700",
+	                "RRA:AVERAGE:0.5:24:775",
+	                "RRA:AVERAGE:0.5:288:797" );
+	                
+	my @ds;
+	                	
+	if ($type eq "CPU") {
+	
+		@ds  = ( "DS:user_p:GAUGE:900:0:100",
+		            "DS:system_p:GAUGE:900:0:100" );
+		            
+	} elsif ($type eq "LOAD") {
+	                
+	    @ds  = ( "DS:load_01:GAUGE:900:U:U",
+	                "DS:load_05:GAUGE:900:U:U",
+	                "DS:load_15:GAUGE:900:U:U" );
+	                
+	} elsif ($type eq "SWAP") {
+	
+		@ds  = ( "DS:swap_p:GAUGE:900:0:100" );
+		
+	} else {
+	
+		warn "Unknown RRD type \"$type\" specified.\n";
+		return;
+		
+	};
+	
+	RRDs::create ( $rrdfile, @rrdopts, @ds, @rra );
+	
+	my $rrderr = RRDs::error;
+	
+	if ($rrderr) {
+	
+		warn "RRDs error during create of $rrdfile: $rrderr.";
+		
+	};
+	
+	return;
+	
+};  ##  END make_rrd
+
+###############################################################################
+
+__END__
